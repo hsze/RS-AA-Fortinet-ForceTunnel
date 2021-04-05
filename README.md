@@ -58,7 +58,6 @@ This example shows onfiguration on FortigateA. FortigateA’s local ASN is assig
 1.	Configure Peering to both Fortigates. 
 - Add peer to each Fortigate as a Peer, identifying each by a Name.  In this example, the Names are “FortigateA” and “FortigateB”, and the remote ASN number is 65008.
 - The Peer address is the Internal IP (Port 2) of the Fortigates, which will force Internet bound traffic to hit the Internal interface, be processed by firewall rules, before exiting to the External interface.
-
 ![Config-RS-Peers](/images/5-Config-RS-Peers.png)
 
 2.	Enable “Branch to Branch” flag, which underneath the covers establishes iBGP peering between Route Server and ExpressRoute Gateway
@@ -66,10 +65,12 @@ This example shows onfiguration on FortigateA. FortigateA’s local ASN is assig
 
 ### User Defined Routes 
 Although BGP is introduced in the picture, UDRs are still important consideration:  
-1.	Fortigate’s External Subnet: The firewall’s external subnet needs to have direct route to Internet. Any default 0/0 route learned via Route Server will need to be overridden by UDR, otherwise there will be a loop. Below example of Effective Routes on Fortigate’s External NIC (Port 1) shows how has learned 0/0 from Route Server. (This is overridden with a UDR to 0/0 with Next Hop of Internet.  This concept should become clear later in the article with additional screen captures.) 
+1.	Fortigate’s External Subnet: The firewall’s external subnet needs to have direct route to Internet. Any default 0/0 route learned via Route Server will need to be overridden by UDR, otherwise there will be a loop. Below example of Effective Routes on Fortigate’s External NIC (Port 1) shows how has learned 0/0 from Route Server. (This is overridden with a UDR to 0/0 with Next Hop of Internet.  This concept should become clear later in the article with additional screen captures.)
+ 
 ![UDR1](/images/7-Config-UDR-Spoke.png) 
 
 2.	GatewaySubnet:  To ensure flow symmetry of East-West traffic, UDRs to Protected Subnets and Protected Peered VNETs will need UDRs with Next hop IP address of the ILB
+
 ![UDR2](/images/8-Config-UDR-GW.png) 
 
 ## Verification
@@ -126,6 +127,7 @@ Traceroute of Protected Hub VM to on-prem shows traffic goes through the Firewal
 
 2.	Validate North-South traffic: 
 curl ifconfig.io shows Protected Hub VM has reachability to outside world/Internet. It uses the Fortigate’s Public Load Balancer Public IP, 40.64.93.48
+
    ![V-NS-Forwarding1](/images/24-V-Forwarding-NS-1.png) 
  
 	curl ifconfig.io shows Spoke VM has reachability to outside world/Internet. It uses the Fortigate’s Public Load Balancer Public IP, 40.64.93.48
