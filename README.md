@@ -2,7 +2,7 @@
 ## Use Case
 Recently, many customers have the requirement to “force tunnel” Internet bound traffic from on-premises through Azure, for centralized management and control. This configuration is the opposite of the model where customers force tunnel all Azure-initiated traffic destined to Internet through an on-prem firewall. This is also different from the split tunnel model.  
 This article describes how this force tunneling is configured in an Azure Hub-Spoke with a pair of Active-Active Fortinet Firewall Network Virtual Appliances (NVAs), with a Public Load Balancer (PLB) directing North-South traffic, and an Internal Load Balancer (ILB) directing East-West traffic, as in [FortiGate template](https://github.com/fortinetsolutions/Azure-Templates/tree/master/FortiGate/Azure%20Active-Active%20LoadBalancer%20HA-Ports). On-premises is connected to Azure by [ExpressRoute](https://docs.microsoft.com/en-us/azure/expressroute/expressroute-introduction). By configuring the Fortigates to originate default route (0/0), and by introducing [Azure Route Server](https://docs.microsoft.com/en-us/azure/route-server/overview) to reflect this default route, customers will be able to force on-prem Internet bound traffic through the Fortinet firewalls.
-![UseCase](/images/1-UseCase.png)
+![UseCase](/images/1-UseCase.PNG)
 
  
 ## Concepts
@@ -16,7 +16,7 @@ This article describes how this force tunneling is configured in an Azure Hub-Sp
 
 ## Configuration
 This tested configuration looks as follows:
-![UseCase](/images/2-Config.png)
+![Configuration](/images/2-Config.PNG)
  
 - Resource Group: “RG-Fortigate”
 - VNET: “FW-FG1-VNET”, address space 172.16.136.0/22
@@ -43,6 +43,8 @@ a.	Route Server has 2 BGP speaker addresses, so each Fortigate will be configure
 b.	EBGP Multhop will be required as this is not a point-to-point BGP peer  
 c.	Fortigate can use any ASN that is not reserved by Azure (65515 – 65520).  Azure Route Server will always use ASN 65515. 
 This example shows onfiguration on FortigateA. FortigateA’s local ASN is assigned as 65008, and it peers to the two BGP speaker addresses of Route Server. FortigateB configuration looks identical
+![Fortigate-Peer](/images/3-Config-Fortigate-peer.png)
+
  
 2.	Propagate default 0/0 Route in BGP on each Fortigate
 a.	Redistribute the static route to default 0/0, which is already defined as a Static Route on the Fortigates (standard template configuration), into BGP. 
