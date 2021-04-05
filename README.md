@@ -51,16 +51,17 @@ This example shows onfiguration on FortigateA. FortigateA’s local ASN is assig
 2.	Propagate default 0/0 Route in BGP on each Fortigate
 - Redistribute the static route to default 0/0, which is already defined as a Static Route on the Fortigates (standard template configuration), into BGP. 
 - Associate a route-map to limit the static redistribution to only 0/0
+
   ![Fortigate-Redist](/images/4-Config-Fortigate-Redist.png) 
 
 #### Route Server
 1.	Configure Peering to both Fortigates. 
 - Add peer to each Fortigate as a Peer, identifying each by a Name.  In this example, the Names are “FortigateA” and “FortigateB”, and the remote ASN number is 65008.
 - The Peer address is the Internal IP (Port 2) of the Fortigates, which will force Internet bound traffic to hit the Internal interface, be processed by firewall rules, before exiting to the External interface.
+
 ![Config-RS-Peers](/images/5-Config-RS-Peers.png)
 
 2.	Enable “Branch to Branch” flag, which underneath the covers establishes iBGP peering between Route Server and ExpressRoute Gateway
-
 ![Config-RS-iBGP](/images/6-Config-RS-iBGP.png) 
 
 ### User Defined Routes 
