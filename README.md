@@ -1,6 +1,7 @@
 # Forced Tunneling of Internet traffic through Active-Active Fortinet Firewalls using Azure Route Server
 ## Use Case
 Recently, many customers have the requirement to “force tunnel” Internet bound traffic from on-premises through Azure, for centralized management and control. This configuration is the opposite of the model where customers force tunnel all Azure-initiated traffic destined to Internet through an on-prem firewall. This is also different from the split tunnel model.  
+
 This article describes how this force tunneling is configured in an Azure Hub-Spoke with a pair of Active-Active Fortinet Firewall Network Virtual Appliances (NVAs), with a Public Load Balancer (PLB) directing North-South traffic, and an Internal Load Balancer (ILB) directing East-West traffic, as in [FortiGate template](https://github.com/fortinetsolutions/Azure-Templates/tree/master/FortiGate/Azure%20Active-Active%20LoadBalancer%20HA-Ports). On-premises is connected to Azure by [ExpressRoute](https://docs.microsoft.com/en-us/azure/expressroute/expressroute-introduction). By configuring the Fortigates to originate default route (0/0), and by introducing [Azure Route Server](https://docs.microsoft.com/en-us/azure/route-server/overview) to reflect this default route, customers will be able to force on-prem Internet bound traffic through the Fortinet firewalls.
 ![UseCase](/images/1-UseCase.PNG)
 
@@ -44,33 +45,31 @@ b.	EBGP Multhop will be required as this is not a point-to-point BGP peer
 c.	Fortigate can use any ASN that is not reserved by Azure (65515 – 65520).  Azure Route Server will always use ASN 65515. 
 This example shows onfiguration on FortigateA. FortigateA’s local ASN is assigned as 65008, and it peers to the two BGP speaker addresses of Route Server. FortigateB configuration looks identical
 ![Fortigate-Peer](/images/3-Config-Fortigate-peer.png)
-
- 
 2.	Propagate default 0/0 Route in BGP on each Fortigate
 a.	Redistribute the static route to default 0/0, which is already defined as a Static Route on the Fortigates (standard template configuration), into BGP. 
 b.	Associate a route-map to limit the static redistribution to only 0/0
- 
+![Fortigate-Redist](/images/4-Config-Fortigate-Redist.png) 
 
 #### Route Server
 1.	Configure Peering to both Fortigates. 
 a.	Add peer to each Fortigate as a Peer, identifying each by a Name.  In this example, the Names are “FortigateA” and “FortigateB”, and the remote ASN number is 65008.
 b.	The Peer address is the Internal IP (Port 2) of the Fortigates, which will force Internet bound traffic to hit the Internal interface, be processed by firewall rules, before exiting to the External interface.
- 
+![Config-RS-Peers](/images/5-RS-Peers.png) 
 2.	Enable “Branch to Branch” flag, which underneath the covers establishes iBGP peering between Route Server and ExpressRoute Gateway
-
+![Config-RS-iBGP](/images/6-RS-iBGP.png)
  
 ### User Defined Routes 
 Although BGP is introduced in the picture, UDRs are still important consideration:  
 1.	Fortigate’s External Subnet: The firewall’s external subnet needs to have direct route to Internet. Any default 0/0 route learned via Route Server will need to be overridden by UDR, otherwise there will be a loop. Below example of Effective Routes on Fortigate’s External NIC (Port 1) shows how has learned 0/0 from Route Server. (This is overridden with a UDR to 0/0 with Next Hop of Internet.  This concept should become clear later in the article with additional screen captures.)
- 
+![UDR1](/images/7-Config-UDR-Spoke.png) 
 2.	GatewaySubnet:  To ensure flow symmetry of East-West traffic, UDRs to Protected Subnets and Protected Peered VNETs will need UDRs with Next hop IP address of the ILB
- 
+![UDR2](/images/8-Config-UDR-GW.png) 
 ## Verification
 Verification steps include validating Peering, Routing and Next-Hop, and finally Forwarding at each component. 
 ### Validate BGP Peering  
 1.	At both Fortigates, validate BGP peering is established to the two Route Server instances.
- 
- 
+![V-Fort-Peer](/images/9-V-Fortigate-Peer-1.png) 
+![V-Fort-Peer2](/images/10-V-Fortigate-Peer-2.png) 
 2.	At RouteServer, validate BGP peering with the two Fortigates has “Succeeded”
  
 3.	At ExpressRouteGateway, validate iBGP peering has formed with the two instances of RouteServer.
@@ -117,4 +116,4 @@ Traceroute shows Internet traffic sourced from on-prem follows the path to Forti
  
 
 ## Summary
-This article shows how customers can extend the Fortinet “firewall sandwich” configuration to force on-prem sourced Internet bound traffic through the Azure. This is accomplished by adding Azure Route Server to the Hub VNET and configuring the Fortigates to originate a default route 0/0 which is ultimately learned by on-prem. This configuration applies to not only on-prem, but also to ExpressRoute connected AVS [] environments. This configuration is also extensible to Site-to-Site VPNs.
+This article shows how customers can extend the Fortinet “firewall sandwich” configuration to force on-prem sourced Internet bound traffic through the Azure. This is accomplished by adding Azure Route Server to the Hub VNET and configuring the Fortigates to originate a default route 0/0 which is ultimately learned by on-prem. This configuration applies to not only on-prem, but also to ExpressRoute connected [AVS](https://docs.microsoft.com/en-us/azure/azure-vmware/) environments. This configuration is also extensible to Site-to-Site VPNs.
