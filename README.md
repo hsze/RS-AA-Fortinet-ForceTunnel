@@ -33,9 +33,9 @@ This tested configuration looks as follows:
 1. Deployment of a Fortigate firewall sandwich, from [Fortinet Github solutions page](https://github.com/40net-cloud/fortinet-azure-solutions/tree/main/FortiGate/Active-Active-ELB-ILB). (Other options including building off Azure Marketplace deployment template works fine too)  This step is unnecessary for brownfield deployments.
 2. Deployment of GatewaySubnet and ExpressRoute Gateway with Connection to provisioned ExpressRoute Circuit and Private Peering to OnPrem.  This step is unnecessary for brownfield deployments.
 3. Create a RouteServerSubnet and deploy a Route Sever in the subnet: [Quickstart](https://docs.microsoft.com/en-us/azure/route-server/quickstart-configure-route-server-cli). In this example:
-*az network vnet subnet create -g "RG-Fortigate" --vnet-name "FW-FG1-VNET" --name "RouteServerSubnet" --address-prefix "172.16.139.0/27"*
-*$subnet_id = $(az network vnet subnet show -n "RouteServerSubnet" --vnet-name "FW-FG1-VNET" -g "RG-Fortigate" --query id -o tsv)*
-*az network routeserver create -n "RS-FW-FG1-VNET" -g "RG-Fortigate" --hosted-subnet $subnet_id*
+  *az network vnet subnet create -g "RG-Fortigate" --vnet-name "FW-FG1-VNET" --name "RouteServerSubnet" --address-prefix "172.16.139.0/27"*
+  *$subnet_id = $(az network vnet subnet show -n "RouteServerSubnet" --vnet-name "FW-FG1-VNET" -g "RG-Fortigate" --query id -o tsv)*
+  *az network routeserver create -n "RS-FW-FG1-VNET" -g "RG-Fortigate" --hosted-subnet $subnet_id*
 
 ### Detailed configuration on Fortigate and on RouteServer
 #### Fortigates
@@ -45,25 +45,25 @@ This tested configuration looks as follows:
 - Fortigate can use any ASN that is not reserved by Azure (65515 – 65520).  Azure Route Server will always use ASN 65515. 
 This example shows onfiguration on FortigateA. FortigateA’s local ASN is assigned as 65008, and it peers to the two BGP speaker addresses of Route Server. FortigateB configuration looks identical
 
-  ![Fortigate-Peer](/images/3-Config-Fortigate-Peer.png) 
+![Fortigate-Peer](/images/3-Config-Fortigate-Peer.png) 
 
 
 2. Propagate default 0/0 Route in BGP on each Fortigate
 - Redistribute the static route to default 0/0, which is already defined as a Static Route on the Fortigates (standard template configuration), into BGP. 
 - Associate a route-map to limit the static redistribution to only 0/0
 
-  ![Fortigate-Redist](/images/4-Config-Fortigate-Redist.png) 
+![Fortigate-Redist](/images/4-Config-Fortigate-Redist.png) 
 
 #### Route Server
 1. Configure Peering to both Fortigates. 
 - Add peer to each Fortigate as a Peer, identifying each by a Name.  In this example, the Names are “FortigateA” and “FortigateB”, and the remote ASN number is 65008.
 - The Peer address is the Internal IP (Port 2) of the Fortigates, which will force Internet bound traffic to hit the Internal interface, be processed by firewall rules, before exiting to the External interface.
 
-  ![Config-RS-Peers](/images/5-Config-RS-Peers.png)
+![Config-RS-Peers](/images/5-Config-RS-Peers.png)
 
 2. Enable “Branch to Branch” flag, which underneath the covers establishes iBGP peering between Route Server and ExpressRoute Gateway
 
-  ![Config-RS-iBGP](/images/6-Config-RS-iBGP.png) 
+![Config-RS-iBGP](/images/6-Config-RS-iBGP.png) 
 
 ### User Defined Routes 
 Although BGP is introduced in the picture, UDRs are still important consideration:  
@@ -124,28 +124,25 @@ Once BGP peering among ExpressRoute Gateway, RouteServer, and Fortigates have be
 	
 ### Validate Forwarding Path	
 The routes have been validated in previous steps, and now the final validation is with for data path between source and destination. This is to ensure traffic is flowing symmetrically through the firewalls, and properly out to Internet.
-1. Validate E-W traffic: 
-Traceroute of Protected Hub VM to on-prem shows traffic goes through the Firewall (via ILB). 
+1. Validate E-W traffic: Traceroute of Protected Hub VM to on-prem shows traffic goes through the Firewall (via ILB). 
 
-   ![V-EW-Forwarding](/images/22-V-Forwarding-EW-1.png) 
-   ![V-EW-Forwarding2](/images/23-V-Forwarding-EW-2.png) 
+![V-EW-Forwarding](/images/22-V-Forwarding-EW-1.png)
+![V-EW-Forwarding2](/images/23-V-Forwarding-EW-2.png) 
 
   Traceroute of spoke VM to on-prem shows traffic goes through the Firewall (via ILB).
 
-2. Validate North-South traffic: 
-curl ifconfig.io shows Protected Hub VM has reachability to outside world/Internet. It uses the Fortigate’s Public Load Balancer Public IP, 40.64.93.48
+2. Validate North-South traffic: curl ifconfig.io shows Protected Hub VM has reachability to outside world/Internet. It uses the Fortigate’s Public Load Balancer Public IP, 40.64.93.48
 
-   ![V-NS-Forwarding1](/images/24-V-Forwarding-NS-1.png) 
+![V-NS-Forwarding1](/images/24-V-Forwarding-NS-1.png) 
  
   curl ifconfig.io shows Spoke VM has reachability to outside world/Internet. It uses the Fortigate’s Public Load Balancer Public IP, 40.64.93.48
 	
    ![V-NS-Forwarding2](/images/25-V-F-Forwarding-NS-2.png) 
 
 3. FINALLY! Validation on-prem goes out to Internet via Azure, via Fortigate firewalls.
-The on-prem CPE router is able to SSH to a TestVM (52.183.63.77) as shown below. The on-prem host is using Fortigate’s Public Load Balancer’s PIP, 40.64.93.48 (red below). This proves on-prem traffic is being steered through Azure and egressing to Internet by the Fortigate's External Load Balancer. 
-
-   ![V-Final1](/images/27-V-Forwarding-Internet-1.png) 
-   ![V-Final2](/images/26-V-Forwarding-Internet-2.png) 
+The on-prem CPE router is able to SSH to a TestVM (52.183.63.77) as shown below. The on-prem host is using Fortigate’s Public Load Balancer’s PIP, 40.64.93.48 (red below). This proves on-prem traffic is being steered through Azure and egressing to Internet by the Fortigate's External Load Balancer.
+  ![V-Final1](/images/27-V-Forwarding-Internet-1.png)
+  ![V-Final2](/images/26-V-Forwarding-Internet-2.png) 
 
 
 
