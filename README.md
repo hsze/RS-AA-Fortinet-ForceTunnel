@@ -67,6 +67,7 @@ Although BGP is introduced in the picture, UDRs are still important consideratio
 1.	Fortigate’s External Subnet: The firewall’s external subnet needs to have direct route to Internet. Any default 0/0 route learned via Route Server will need to be overridden by UDR, otherwise there will be a loop. Below example of Effective Routes on Fortigate’s External NIC (Port 1) shows how has learned 0/0 from Route Server. (This is overridden with a UDR to 0/0 with Next Hop of Internet.  This concept should become clear later in the article with additional screen captures.)
 
 ![UDR1](/images/7-Config-UDR-Spoke.png) 
+
 2.	GatewaySubnet:  To ensure flow symmetry of East-West traffic, UDRs to Protected Subnets and Protected Peered VNETs will need UDRs with Next hop IP address of the ILB
 
 ![UDR2](/images/8-Config-UDR-GW.png) 
@@ -76,51 +77,67 @@ Verification steps include validating Peering, Routing and Next-Hop, and finally
 1.	At both Fortigates, validate BGP peering is established to the two Route Server instances.
 ![V-Fort-Peer](/images/9-V-Fortigate-Peer-1.png) 
 ![V-Fort-Peer2](/images/10-V-Fortigate-Peer-2.png) 
-2.	At RouteServer, validate BGP peering with the two Fortigates has “Succeeded”
- 
-![V-RS-Succeed](/images/11-V-RS-Peer.png) 
+
+2.	At RouteServer, validate BGP peering with the two Fortigates has “Succeeded” 
+ ![V-RS-Succeed](/images/11-V-RS-Peer.png) 
+
 3.	At ExpressRouteGateway, validate iBGP peering has formed with the two instances of RouteServer.
 
-![V-ERGW-Peer](/images/12-V-ERGW-Peer.png) 
+ ![V-ERGW-Peer](/images/12-V-ERGW-Peer.png) 
+ 
 ### Validate Routing Tables  
 Once BGP peering among ExpressRoute Gateway, RouteServer, and Fortigates have been validated as above, routes should be properly exchanged among on-prem and Azure.
 1.	Validating at the Fortigates: A healthy configuration shows Fortigate originates the default 0/0 in the BGP table, highlighted in red below. It also has learned the on-prem prefixes 2.2.2.2/32 and 192.168.1.0/24, highlighted in blue.
-![Fortigate-Redist](/images/4-Config-Fortigate-Redist.png)  
-2.	Validating at the RouteServer: Shown below, both instances of RouteServer (IN_0) and (IN_1) are learning default 0/0 from Fortigate A, 172.16.136.69. They are also learning the default from FortigateB, 172.16.136.70. 
- 
 
+![V-Fortigate-Routing](/images/13-V-Routing-FG.png)  
+
+2.	Validating at the RouteServer: Shown below, both instances of RouteServer (IN_0) and (IN_1) are learning default 0/0 from Fortigate A, 172.16.136.69. They are also learning the default from FortigateB, 172.16.136.70. 
+ ![V-RS-Routing](/images/14-V-Routing-RS-1.png) 
+ ![V-RS-Routing2](/images/15-V-Routing-RS-2.png) 
 
  
 3.	Validating at the ExpressRoute Gateway: ExpressRoute Gateway is learning many routes from on-prem (highlighted in blue) and the Fortigate (highlighted in red). Notice the default 0/0 learned from peer Route Server (172.16.139.4 and 172.16.139.5) are set with nextHop of the Fortigate internal IP of 172.16.136.69, and not the RouteServer. Azure Route Server is NEVER in the data path but works at the BGP control plane level.
+  ![V-ERGW-Routing](/images/16-V-Routing-ERGW-1.png) 
+  ![V-ERGW-Routing2](/images/17-V-Routing-ERGW-2.png) 
+
  
- 
-ExpressRoute advertises the 0/0 route it has learned downstream to the MSEE peers of 172.16.138.4 and 172.16.138.5.
-  
+ExpressRoute Gateway advertises the 0/0 route it has learned downstream to the MSEE peers of 172.16.138.4 and 172.16.138.5.
+  ![V-ERGW-Routing3](/images/18-V-Routing-ERGW-3.png) 
+  ![V-ERGW-Routing4](/images/19-V-Routing-ERGW-4.png) 
+
    
 4.	Validating at the MSEE: MSEE learns the default 0/0 route from the ExpressRoute Gateway (red), and learns the on-prem prefixes from ExpressRoute Private Peering (blue)
- 
+  ![V-MSEE-Routing](/images/20-V-Routing-MSEE.png) 
+
 5.	Validate routing at on-prem. Default route 0/0 is learned from ExpressRoute Private Peering 
+  ![V-OnPrem-Routing](/images/21-V-Routing-OnPrem.png) 
 	
 ### Validate Forwarding Path	
 The routes have been validated in previous steps, and now the final validation is with for data path between source and destination. This is to ensure traffic is flowing symmetrically through the firewalls, and properly out to Internet.
 1.	Validate E-W traffic: 
 Traceroute of Protected Hub VM to on-prem shows traffic goes through the Firewall (via ILB). 
- 
+   ![V-EW-Forwarding](/images/22-V-Forwarding-EW-1.png) 
+   ![V-EW-Forwarding2](/images/23-V-Forwarding-EW-2.png) 
+
 	Traceroute of spoke VM to on-prem shows traffic goes through the Firewall (via ILB).
- 
+
 2.	Validate North-South traffic: 
 Curl ifconfig.io shows Protected Hub VM has reachability to outside world/Internet. It uses the Fortigate’s Public Load Balancer Public IP, 40.64.93.48
+   ![V-NS-Forwarding1](/images/24-V-Forwarding-NS-1.png) 
  
-Curl ifconfig.io shows Spoke VM has reachability to outside world/Internet. It uses the Fortigate’s Public Load Balancer Public IP, 40.64.93.48
- 
+	Curl ifconfig.io shows Spoke VM has reachability to outside world/Internet. It uses the Fortigate’s Public Load Balancer Public IP, 40.64.93.48
+   ![V-NS-Forwarding2](/images/25-V-Forwarding-NS-2.png) 
+
 3.	FINALLY! Validation on-prem goes out to Internet via Azure, via Fortigate firewalls.
-The on-prem CPE router is able to SSH to a TestVM (52.183.63.77) as shown below. The on-prem host is using Fortigate’s Public Load Balancer’s PIP, 40.64.93.48 (red below). This proves the 
+The on-prem CPE router is able to SSH to a TestVM (52.183.63.77) as shown below. The on-prem host is using Fortigate’s Public Load Balancer’s PIP, 40.64.93.48 (red below). This proves on-prem traffic is being steered through Azure and egressing to Internet by the Fortigate's External Load Balancer. 
+   ![V-Final1](/images/27-V-Forwarding-Internet-1.png) 
+   ![V-Final2](/images/26-V-Forwarding-Internet-2.png) 
+
+
+
+
  
-
-
-
- 
-Traceroute shows Internet traffic sourced from on-prem follows the path to Fortigate firewalls (172.16.136.69 and 172.16.136.70), though the traceroute process is blocked and does not complete to the Internet destination.
+	Traceroute shows Internet traffic sourced from on-prem follows the path to Fortigate firewalls (172.16.136.69 and 172.16.136.70), though the traceroute process is blocked and does not complete to the Internet destination.
  
 
 ## Summary
