@@ -30,12 +30,12 @@ This tested configuration looks as follows:
 - ERGW IPs: 172.16.138.12 and 172.16.138.13
 
 ### Preparation of environment:
-1.	Deployment of a Fortigate firewall sandwich, from Fortinet Github solutions page:  fortinet-azure-solutions/FortiGate/Active-Active-ELB-ILB at main · 40net-cloud/fortinet-azure-solutions (github.com). (Other options including building off Azure Marketplace deployment template works fine too)  This step is unnecessary for brownfield deployments.
+1.	Deployment of a Fortigate firewall sandwich, from [Fortinet Github solutions page](https://github.com/40net-cloud/fortinet-azure-solutions/tree/main/FortiGate/Active-Active-ELB-ILB). (Other options including building off Azure Marketplace deployment template works fine too)  This step is unnecessary for brownfield deployments.
 2.	Deployment of GatewaySubnet and ExpressRoute Gateway with Connection to provisioned ExpressRoute Circuit and Private Peering to OnPrem.  This step is unnecessary for brownfield deployments.
-3.	Create a RouteServerSubnet and deploy a Route Sever in the subnet [Quickstart: Create and configure Route Server using Azure CLI | Microsoft Docs], in this example:
- az network vnet subnet create -g "RG-Fortigate" --vnet-name "FW-FG1-VNET" --name "RouteServerSubnet" --address-prefix "172.16.139.0/27"
- $subnet_id = $(az network vnet subnet show -n "RouteServerSubnet" --vnet-name "FW-FG1-VNET" -g "RG-Fortigate" --query id -o tsv)
- az network routeserver create -n "RS-FW-FG1-VNET" -g "RG-Fortigate" --hosted-subnet $subnet_id
+3.	Create a RouteServerSubnet and deploy a Route Sever in the subnet: [Quickstart](https://docs.microsoft.com/en-us/azure/route-server/quickstart-configure-route-server-cli). In this example:
+* az network vnet subnet create -g "RG-Fortigate" --vnet-name "FW-FG1-VNET" --name "RouteServerSubnet" --address-prefix "172.16.139.0/27"
+* $subnet_id = $(az network vnet subnet show -n "RouteServerSubnet" --vnet-name "FW-FG1-VNET" -g "RG-Fortigate" --query id -o tsv)
+* az network routeserver create -n "RS-FW-FG1-VNET" -g "RG-Fortigate" --hosted-subnet $subnet_id
 
 ### Detailed configuration on Fortigate and on RouteServer
 #### Fortigates
@@ -45,32 +45,33 @@ This tested configuration looks as follows:
 - Fortigate can use any ASN that is not reserved by Azure (65515 – 65520).  Azure Route Server will always use ASN 65515. 
 This example shows onfiguration on FortigateA. FortigateA’s local ASN is assigned as 65008, and it peers to the two BGP speaker addresses of Route Server. FortigateB configuration looks identical
 
-![Fortigate-Peer](/images/3-Config-Fortigate-Peer.png) 
+  ![Fortigate-Peer](/images/3-Config-Fortigate-Peer.png) 
 
 
 2.	Propagate default 0/0 Route in BGP on each Fortigate
-a.	Redistribute the static route to default 0/0, which is already defined as a Static Route on the Fortigates (standard template configuration), into BGP. 
-b.	Associate a route-map to limit the static redistribution to only 0/0
-![Fortigate-Redist](/images/4-Config-Fortigate-Redist.png) 
+- Redistribute the static route to default 0/0, which is already defined as a Static Route on the Fortigates (standard template configuration), into BGP. 
+- Associate a route-map to limit the static redistribution to only 0/0
+  ![Fortigate-Redist](/images/4-Config-Fortigate-Redist.png) 
 
 #### Route Server
 1.	Configure Peering to both Fortigates. 
-a.	Add peer to each Fortigate as a Peer, identifying each by a Name.  In this example, the Names are “FortigateA” and “FortigateB”, and the remote ASN number is 65008.
-b.	The Peer address is the Internal IP (Port 2) of the Fortigates, which will force Internet bound traffic to hit the Internal interface, be processed by firewall rules, before exiting to the External interface.
+- Add peer to each Fortigate as a Peer, identifying each by a Name.  In this example, the Names are “FortigateA” and “FortigateB”, and the remote ASN number is 65008.
+- The Peer address is the Internal IP (Port 2) of the Fortigates, which will force Internet bound traffic to hit the Internal interface, be processed by firewall rules, before exiting to the External interface.
 ![Config-RS-Peers](/images/5-Config-RS-Peers.png)
 
 2.	Enable “Branch to Branch” flag, which underneath the covers establishes iBGP peering between Route Server and ExpressRoute Gateway
+
 ![Config-RS-iBGP](/images/6-Config-RS-iBGP.png) 
 
 ### User Defined Routes 
 Although BGP is introduced in the picture, UDRs are still important consideration:  
 1.	Fortigate’s External Subnet: The firewall’s external subnet needs to have direct route to Internet. Any default 0/0 route learned via Route Server will need to be overridden by UDR, otherwise there will be a loop. Below example of Effective Routes on Fortigate’s External NIC (Port 1) shows how has learned 0/0 from Route Server. (This is overridden with a UDR to 0/0 with Next Hop of Internet.  This concept should become clear later in the article with additional screen captures.)
 
-![UDR1](/images/7-Config-UDR-Spoke.png) 
+  ![UDR1](/images/7-Config-UDR-Spoke.png) 
 
 2.	GatewaySubnet:  To ensure flow symmetry of East-West traffic, UDRs to Protected Subnets and Protected Peered VNETs will need UDRs with Next hop IP address of the ILB
 
-![UDR2](/images/8-Config-UDR-GW.png) 
+  ![UDR2](/images/8-Config-UDR-GW.png) 
 ## Verification
 Verification steps include validating Peering, Routing and Next-Hop, and finally Forwarding at each component. 
 ### Validate BGP Peering  
@@ -82,13 +83,11 @@ Verification steps include validating Peering, Routing and Next-Hop, and finally
  ![V-RS-Succeed](/images/11-V-RS-Peer.png) 
 
 3.	At ExpressRouteGateway, validate iBGP peering has formed with the two instances of RouteServer.
-
  ![V-ERGW-Peer](/images/12-V-ERGW-Peer.png) 
  
 ### Validate Routing Tables  
 Once BGP peering among ExpressRoute Gateway, RouteServer, and Fortigates have been validated as above, routes should be properly exchanged among on-prem and Azure.
 1.	Validating at the Fortigates: A healthy configuration shows Fortigate originates the default 0/0 in the BGP table, highlighted in red below. It also has learned the on-prem prefixes 2.2.2.2/32 and 192.168.1.0/24, highlighted in blue.
-
 ![V-Fortigate-Routing](/images/13-V-Routing-FG.png)  
 
 2.	Validating at the RouteServer: Shown below, both instances of RouteServer (IN_0) and (IN_1) are learning default 0/0 from Fortigate A, 172.16.136.69. They are also learning the default from FortigateB, 172.16.136.70. 
@@ -102,6 +101,7 @@ Once BGP peering among ExpressRoute Gateway, RouteServer, and Fortigates have be
 
  
 ExpressRoute Gateway advertises the 0/0 route it has learned downstream to the MSEE peers of 172.16.138.4 and 172.16.138.5.
+
   ![V-ERGW-Routing3](/images/18-V-Routing-ERGW-3.png) 
   ![V-ERGW-Routing4](/images/19-V-Routing-ERGW-4.png) 
 
@@ -116,6 +116,7 @@ ExpressRoute Gateway advertises the 0/0 route it has learned downstream to the M
 The routes have been validated in previous steps, and now the final validation is with for data path between source and destination. This is to ensure traffic is flowing symmetrically through the firewalls, and properly out to Internet.
 1.	Validate E-W traffic: 
 Traceroute of Protected Hub VM to on-prem shows traffic goes through the Firewall (via ILB). 
+
    ![V-EW-Forwarding](/images/22-V-Forwarding-EW-1.png) 
    ![V-EW-Forwarding2](/images/23-V-Forwarding-EW-2.png) 
 
@@ -141,4 +142,4 @@ The on-prem CPE router is able to SSH to a TestVM (52.183.63.77) as shown below.
  
 
 ## Summary
-This article shows how customers can extend the Fortinet “firewall sandwich” configuration to force on-prem sourced Internet bound traffic through the Azure. This is accomplished by adding Azure Route Server to the Hub VNET and configuring the Fortigates to originate a default route 0/0 which is ultimately learned by on-prem. This configuration applies to not only on-prem, but also to ExpressRoute connected [AVS](https://docs.microsoft.com/en-us/azure/azure-vmware/) environments. This configuration is also extensible to Site-to-Site VPNs.
+This article shows how customers can extend the Fortinet “firewall sandwich” configuration to force on-prem sourced Internet bound traffic through the Azure. This is accomplished by adding Azure Route Server to the Hub VNET and configuring the Fortigates to originate a default route 0/0 which is ultimately learned by on-prem. This configuration applies to not only on-prem, but also to ExpressRoute connected [Azure VMWare Solution](https://docs.microsoft.com/en-us/azure/azure-vmware/) environments. This configuration is also extensible to Site-to-Site VPNs.
