@@ -40,11 +40,14 @@ This tested configuration looks as follows:
 ### Detailed configuration on Fortigate and on RouteServer
 #### Fortigates
 1.	Enable BGP and establish Peering to Route Server, from each Fortigates. 
-a.	Route Server has 2 BGP speaker addresses, so each Fortigate will be configured for 2 BGP peers
-b.	EBGP Multhop will be required as this is not a point-to-point BGP peer  
-c.	Fortigate can use any ASN that is not reserved by Azure (65515 – 65520).  Azure Route Server will always use ASN 65515. 
+- Route Server has 2 BGP speaker addresses, so each Fortigate will be configured for 2 BGP peers
+- EBGP Multhop will be required as this is not a point-to-point BGP peer  
+- Fortigate can use any ASN that is not reserved by Azure (65515 – 65520).  Azure Route Server will always use ASN 65515. 
 This example shows onfiguration on FortigateA. FortigateA’s local ASN is assigned as 65008, and it peers to the two BGP speaker addresses of Route Server. FortigateB configuration looks identical
-![Fortigate-Peer](/images/3-Config-Fortigate-peer.png)
+
+![Fortigate-Peer](/images/3-Config-Fortigate-Peer.png) 
+
+
 2.	Propagate default 0/0 Route in BGP on each Fortigate
 a.	Redistribute the static route to default 0/0, which is already defined as a Static Route on the Fortigates (standard template configuration), into BGP. 
 b.	Associate a route-map to limit the static redistribution to only 0/0
@@ -54,15 +57,18 @@ b.	Associate a route-map to limit the static redistribution to only 0/0
 1.	Configure Peering to both Fortigates. 
 a.	Add peer to each Fortigate as a Peer, identifying each by a Name.  In this example, the Names are “FortigateA” and “FortigateB”, and the remote ASN number is 65008.
 b.	The Peer address is the Internal IP (Port 2) of the Fortigates, which will force Internet bound traffic to hit the Internal interface, be processed by firewall rules, before exiting to the External interface.
-![Config-RS-Peers](/images/5-RS-Peers.png) 
+![Config-RS-Peers](/images/5-Config-RS-Peers.png)
+
 2.	Enable “Branch to Branch” flag, which underneath the covers establishes iBGP peering between Route Server and ExpressRoute Gateway
-![Config-RS-iBGP](/images/6-RS-iBGP.png)
- 
+![Config-RS-iBGP](/images/6-Config-RS-iBGP.png) 
+
 ### User Defined Routes 
 Although BGP is introduced in the picture, UDRs are still important consideration:  
 1.	Fortigate’s External Subnet: The firewall’s external subnet needs to have direct route to Internet. Any default 0/0 route learned via Route Server will need to be overridden by UDR, otherwise there will be a loop. Below example of Effective Routes on Fortigate’s External NIC (Port 1) shows how has learned 0/0 from Route Server. (This is overridden with a UDR to 0/0 with Next Hop of Internet.  This concept should become clear later in the article with additional screen captures.)
+
 ![UDR1](/images/7-Config-UDR-Spoke.png) 
 2.	GatewaySubnet:  To ensure flow symmetry of East-West traffic, UDRs to Protected Subnets and Protected Peered VNETs will need UDRs with Next hop IP address of the ILB
+
 ![UDR2](/images/8-Config-UDR-GW.png) 
 ## Verification
 Verification steps include validating Peering, Routing and Next-Hop, and finally Forwarding at each component. 
@@ -72,12 +78,14 @@ Verification steps include validating Peering, Routing and Next-Hop, and finally
 ![V-Fort-Peer2](/images/10-V-Fortigate-Peer-2.png) 
 2.	At RouteServer, validate BGP peering with the two Fortigates has “Succeeded”
  
+![V-RS-Succeed](/images/11-V-RS-Peer.png) 
 3.	At ExpressRouteGateway, validate iBGP peering has formed with the two instances of RouteServer.
- 
+
+![V-ERGW-Peer](/images/12-V-ERGW-Peer.png) 
 ### Validate Routing Tables  
 Once BGP peering among ExpressRoute Gateway, RouteServer, and Fortigates have been validated as above, routes should be properly exchanged among on-prem and Azure.
 1.	Validating at the Fortigates: A healthy configuration shows Fortigate originates the default 0/0 in the BGP table, highlighted in red below. It also has learned the on-prem prefixes 2.2.2.2/32 and 192.168.1.0/24, highlighted in blue.
- 
+![Fortigate-Redist](/images/4-Config-Fortigate-Redist.png)  
 2.	Validating at the RouteServer: Shown below, both instances of RouteServer (IN_0) and (IN_1) are learning default 0/0 from Fortigate A, 172.16.136.69. They are also learning the default from FortigateB, 172.16.136.70. 
  
 
