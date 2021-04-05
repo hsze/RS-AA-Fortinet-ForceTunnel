@@ -65,13 +65,12 @@ This example shows onfiguration on FortigateA. FortigateA’s local ASN is assig
 
 ### User Defined Routes 
 Although BGP is introduced in the picture, UDRs are still important consideration:  
-1.	Fortigate’s External Subnet: The firewall’s external subnet needs to have direct route to Internet. Any default 0/0 route learned via Route Server will need to be overridden by UDR, otherwise there will be a loop. Below example of Effective Routes on Fortigate’s External NIC (Port 1) shows how has learned 0/0 from Route Server. (This is overridden with a UDR to 0/0 with Next Hop of Internet.  This concept should become clear later in the article with additional screen captures.)
-
-  ![UDR1](/images/7-Config-UDR-Spoke.png) 
+1.	Fortigate’s External Subnet: The firewall’s external subnet needs to have direct route to Internet. Any default 0/0 route learned via Route Server will need to be overridden by UDR, otherwise there will be a loop. Below example of Effective Routes on Fortigate’s External NIC (Port 1) shows how has learned 0/0 from Route Server. (This is overridden with a UDR to 0/0 with Next Hop of Internet.  This concept should become clear later in the article with additional screen captures.) 
+![UDR1](/images/7-Config-UDR-Spoke.png) 
 
 2.	GatewaySubnet:  To ensure flow symmetry of East-West traffic, UDRs to Protected Subnets and Protected Peered VNETs will need UDRs with Next hop IP address of the ILB
+![UDR2](/images/8-Config-UDR-GW.png) 
 
-  ![UDR2](/images/8-Config-UDR-GW.png) 
 ## Verification
 Verification steps include validating Peering, Routing and Next-Hop, and finally Forwarding at each component. 
 ### Validate BGP Peering  
@@ -96,17 +95,19 @@ Once BGP peering among ExpressRoute Gateway, RouteServer, and Fortigates have be
 
  
 3.	Validating at the ExpressRoute Gateway: ExpressRoute Gateway is learning many routes from on-prem (highlighted in blue) and the Fortigate (highlighted in red). Notice the default 0/0 learned from peer Route Server (172.16.139.4 and 172.16.139.5) are set with nextHop of the Fortigate internal IP of 172.16.136.69, and not the RouteServer. Azure Route Server is NEVER in the data path but works at the BGP control plane level.
+
   ![V-ERGW-Routing](/images/16-V-Routing-ERGW-1.png) 
   ![V-ERGW-Routing2](/images/17-V-Routing-ERGW-2.png) 
 
  
-ExpressRoute Gateway advertises the 0/0 route it has learned downstream to the MSEE peers of 172.16.138.4 and 172.16.138.5.
+	ExpressRoute Gateway advertises the 0/0 route it has learned downstream to the MSEE peers of 172.16.138.4 and 172.16.138.5.
 
   ![V-ERGW-Routing3](/images/18-V-Routing-ERGW-3.png) 
   ![V-ERGW-Routing4](/images/19-V-Routing-ERGW-4.png) 
 
    
 4.	Validating at the MSEE: MSEE learns the default 0/0 route from the ExpressRoute Gateway (red), and learns the on-prem prefixes from ExpressRoute Private Peering (blue)
+
   ![V-MSEE-Routing](/images/20-V-Routing-MSEE.png) 
 
 5.	Validate routing at on-prem. Default route 0/0 is learned from ExpressRoute Private Peering 
@@ -123,11 +124,12 @@ Traceroute of Protected Hub VM to on-prem shows traffic goes through the Firewal
 	Traceroute of spoke VM to on-prem shows traffic goes through the Firewall (via ILB).
 
 2.	Validate North-South traffic: 
-Curl ifconfig.io shows Protected Hub VM has reachability to outside world/Internet. It uses the Fortigate’s Public Load Balancer Public IP, 40.64.93.48
+curl ifconfig.io shows Protected Hub VM has reachability to outside world/Internet. It uses the Fortigate’s Public Load Balancer Public IP, 40.64.93.48
    ![V-NS-Forwarding1](/images/24-V-Forwarding-NS-1.png) 
  
-	Curl ifconfig.io shows Spoke VM has reachability to outside world/Internet. It uses the Fortigate’s Public Load Balancer Public IP, 40.64.93.48
-   ![V-NS-Forwarding2](/images/25-V-Forwarding-NS-2.png) 
+	curl ifconfig.io shows Spoke VM has reachability to outside world/Internet. It uses the Fortigate’s Public Load Balancer Public IP, 40.64.93.48
+	
+   ![V-NS-Forwarding2](/images/25-V-F-Forwarding-NS-2.png) 
 
 3.	FINALLY! Validation on-prem goes out to Internet via Azure, via Fortigate firewalls.
 The on-prem CPE router is able to SSH to a TestVM (52.183.63.77) as shown below. The on-prem host is using Fortigate’s Public Load Balancer’s PIP, 40.64.93.48 (red below). This proves on-prem traffic is being steered through Azure and egressing to Internet by the Fortigate's External Load Balancer. 
