@@ -2,6 +2,8 @@
 ## Use Case
 Recently, many customers have the requirement to “force tunnel” Internet bound traffic from on-premises through Azure, for centralized management and control. This configuration is the opposite of the model where customers force tunnel all Azure-initiated traffic destined to Internet through an on-prem firewall. This is also different from the split tunnel model.  
 This article describes how this force tunneling is configured in an Azure Hub-Spoke with a pair of Active-Active Fortinet Firewall Network Virtual Appliances (NVAs), with a Public Load Balancer (PLB) directing North-South traffic, and an Internal Load Balancer (ILB) directing East-West traffic, as in [FortiGate template](https://github.com/fortinetsolutions/Azure-Templates/tree/master/FortiGate/Azure%20Active-Active%20LoadBalancer%20HA-Ports). On-premises is connected to Azure by [ExpressRoute](https://docs.microsoft.com/en-us/azure/expressroute/expressroute-introduction). By configuring the Fortigates to originate default route (0/0), and by introducing [Azure Route Server](https://docs.microsoft.com/en-us/azure/route-server/overview) to reflect this default route, customers will be able to force on-prem Internet bound traffic through the Fortinet firewalls.
+![UseCase](/images/1-UseCase.png)
+
  
 ## Concepts
 1.	A default route (0/0) MUST be propagated via BGP to on-prem across ExpressRoute, in order to attract Internet traffic from on-prem through Azure. Customers have unsuccessfully tried to define a static route at on-prem border router pointing to ExpressRoute circuit, but this fails because although the traffic may enter the customer edge ExpressRoute circuit interface, it will be dropped upstream at the MSEE (Microsoft Edge Routers) which has no awareness of 0/0.
@@ -14,24 +16,25 @@ This article describes how this force tunneling is configured in an Azure Hub-Sp
 
 ## Configuration
 This tested configuration looks as follows:
+![UseCase](/images/2-Config.png)
  
-•	Resource Group: “RG-Fortigate”
-•	VNET: “FW-FG1-VNET”, address space 172.16.136.0/22
-•	Route Server: “RS-FW-FG1-VNET”
-•	RouteServerSubnet BGP speakers: 172.16.139.4 and 172.16.139.5 
-•	Internal Load Balancer: 172.16.136.68
-•	External Load Balancer IP: 40.63.93.48
-•	Firewalls Internal IPs: FortigateA 172.16.136.69, FortigateB IP 172.16.136.70
-•	MSEE VXLAN IPs:  172.16.138.4 and 172.16.138.5
-•	ERGW IPs: 172.16.138.12 and 172.16.138.13
+- Resource Group: “RG-Fortigate”
+- VNET: “FW-FG1-VNET”, address space 172.16.136.0/22
+- Route Server: “RS-FW-FG1-VNET”
+- RouteServerSubnet BGP speakers: 172.16.139.4 and 172.16.139.5 
+- Internal Load Balancer: 172.16.136.68
+- External Load Balancer IP: 40.63.93.48
+- Firewalls Internal IPs: FortigateA 172.16.136.69, FortigateB IP 172.16.136.70
+- MSEE VXLAN IPs:  172.16.138.4 and 172.16.138.5
+- ERGW IPs: 172.16.138.12 and 172.16.138.13
 
 ### Preparation of environment:
 1.	Deployment of a Fortigate firewall sandwich, from Fortinet Github solutions page:  fortinet-azure-solutions/FortiGate/Active-Active-ELB-ILB at main · 40net-cloud/fortinet-azure-solutions (github.com). (Other options including building off Azure Marketplace deployment template works fine too)  This step is unnecessary for brownfield deployments.
 2.	Deployment of GatewaySubnet and ExpressRoute Gateway with Connection to provisioned ExpressRoute Circuit and Private Peering to OnPrem.  This step is unnecessary for brownfield deployments.
 3.	Create a RouteServerSubnet and deploy a Route Sever in the subnet [Quickstart: Create and configure Route Server using Azure CLI | Microsoft Docs], in this example:
-•	az network vnet subnet create -g "RG-Fortigate" --vnet-name "FW-FG1-VNET" --name "RouteServerSubnet" --address-prefix "172.16.139.0/27"
-•	$subnet_id = $(az network vnet subnet show -n "RouteServerSubnet" --vnet-name "FW-FG1-VNET" -g "RG-Fortigate" --query id -o tsv)
-•	az network routeserver create -n "RS-FW-FG1-VNET" -g "RG-Fortigate" --hosted-subnet $subnet_id
+ az network vnet subnet create -g "RG-Fortigate" --vnet-name "FW-FG1-VNET" --name "RouteServerSubnet" --address-prefix "172.16.139.0/27"
+ $subnet_id = $(az network vnet subnet show -n "RouteServerSubnet" --vnet-name "FW-FG1-VNET" -g "RG-Fortigate" --query id -o tsv)
+ az network routeserver create -n "RS-FW-FG1-VNET" -g "RG-Fortigate" --hosted-subnet $subnet_id
 
 ### Detailed configuration on Fortigate and on RouteServer
 #### Fortigates
